@@ -1,23 +1,42 @@
-from ariadne import QueryType, make_executable_schema
+from ariadne import ObjectType, QueryType, gql, make_executable_schema
 from ariadne.asgi import GraphQL
-from starlette.applications import Starlette
 
-type_defs = """
+# Define types using Schema Definition Language (https://graphql.org/learn/schema/)
+# Wrapping string in gql function provides validation and better error traceback
+type_defs = gql("""
     type Query {
-        hello: String!
+        people: [Person!]!
     }
-"""
 
+    type Person {
+        firstName: String
+        lastName: String
+        age: Int
+        fullName: String
+    }
+""")
+
+# Map resolver functions to Query fields using QueryType
 query = QueryType()
 
+# Resolvers are simple python functions
+@query.field("people")
+def resolve_people(*_):
+    return [
+        {"firstName": "John", "lastName": "Doe", "age": 21},
+        {"firstName": "Bob", "lastName": "Boberson", "age": 24},
+    ]
 
-@query.field("hello")
-def resolve_hello(*_):
-    return "Hello world!"
 
+# Map resolver functions to custom type fields using ObjectType
+person = ObjectType("Person")
 
-# Create executable schema instance
-schema = make_executable_schema(type_defs, query)
+@person.field("fullName")
+def resolve_person_fullname(person, *_):
+    return "%s %s" % (person["firstName"], person["lastName"])
 
-app = Starlette(debug=True)
-app.mount("/graphql", GraphQL(schema, debug=True))
+# Create executable GraphQL schema
+schema = make_executable_schema(type_defs, query, person)
+
+# Create an ASGI app using the schema, running in debug mode
+app = GraphQL(schema, debug=True)
